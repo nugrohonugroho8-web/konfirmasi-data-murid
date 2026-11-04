@@ -5,6 +5,7 @@ const langkah = [
   { judul: 'Periksa setiap isian', isi: 'Cocokkan Nama Lengkap & Tanggal Lahir dengan akta kelahiran; Alamat (Jalan/Dusun, RT, RW, Kelurahan/Desa, Kecamatan) dan nama orang tua dengan Kartu Keluarga; serta pastikan Nomor HP/WhatsApp masih aktif. Isian yang kosong atau janggal ditandai merah.', icon: 'bi-search' },
   { judul: 'Jika semua sudah benar', isi: 'Centang pernyataan di bagian bawah, lalu tekan tombol hijau "Data Sudah Benar". Status Anda berubah menjadi "Data Benar".', icon: 'bi-check2-circle' },
   { judul: 'Jika ada yang salah atau kurang', isi: 'Tekan tombol kuning "Ada yang Salah, Perbaiki". Ubah isian yang keliru — kolom yang Anda ubah akan berwarna kuning dan memperlihatkan data semula. Setelah selesai, centang pernyataan lalu tekan "Simpan Perbaikan".', icon: 'bi-pencil-square' },
+  { judul: 'Unggah dokumen pendukung', isi: 'Di bagian "Unggah Dokumen Pendukung", pilih jenis dokumen (misalnya Kartu Keluarga atau Akta Kelahiran), pilih file JPG/JPEG/PDF berukuran maksimal 1 MB, lalu tekan "Unggah". Foto dokumen dari HP biasanya lebih dari 1 MB — kecilkan dulu (mis. dengan fitur "Kecilkan ukuran" di galeri, aplikasi kompres foto, atau situs kompres PDF). Dokumen dapat dilihat atau dihapus kembali selama portal dibuka.', icon: 'bi-cloud-arrow-up' },
   { judul: 'Selesai', isi: 'Halaman ringkasan menampilkan data yang Anda perbaiki. Tekan "Selesai & Keluar", terutama jika memakai HP/komputer bersama. Anda masih bisa masuk lagi untuk memperbaiki selama portal dibuka.', icon: 'bi-flag' }
 ]
 const aturan = [
@@ -20,6 +21,7 @@ const tanya = [
   ['"NISN tidak ditemukan"?', 'Pastikan NISN 10 digit dan angka 0 di depan ikut diketik. Jika tetap tidak ditemukan, laporkan ke wali kelas.'],
   ['NISN atau kelas saya salah, bagaimana?', 'NISN dan kelas tidak bisa diubah sendiri. Tulis di kolom "Catatan untuk sekolah" lalu simpan, atau laporkan ke wali kelas.'],
   ['Saya salah menyimpan, bisa diubah lagi?', 'Bisa. Masuk lagi lalu perbaiki kembali selama portal masih dibuka. Semua perubahan tercatat di sekolah.'],
+  ['File saya ditolak saat diunggah?', 'Pastikan formatnya JPG, JPEG, atau PDF (bukan PNG/HEIC/Word) dan ukurannya tidak lebih dari 1 MB. Setiap murid dapat mengunggah maksimal 10 dokumen.'],
   ['Apakah data saya aman?', 'Data hanya bisa dilihat oleh murid yang bersangkutan (dengan NISN + tanggal lahir) dan admin sekolah. Rekap data tidak bisa diunduh oleh umum.']
 ]
 </script>

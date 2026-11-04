@@ -2,6 +2,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import InputTanggal from '../components/InputTanggal.vue'
+import DokumenMurid from '../components/DokumenMurid.vue'
 import { KOLOM_EDIT, GRUP, PEKERJAAN, STATUS, cekKolom, tglPanjang, waktu } from '../lib/kolom'
 import { muridSimpan, infoPortal, muridMasuk } from '../lib/api'
 import { sesiMurid, setMurid, keluarMurid } from '../lib/store'
@@ -98,6 +99,7 @@ function keluar() { keluarMurid(); router.push('/') }
         <div class="text-md-end">
           <span class="badge rounded-pill fs-6" :class="STATUS[d.status]?.kelas"><i class="bi me-1" :class="STATUS[d.status]?.icon"></i>{{ STATUS[d.status]?.label }}</span>
           <div v-if="d.dikonfirmasi_at" class="small text-secondary mt-1">Terakhir: {{ waktu(d.dikonfirmasi_at) }}</div>
+          <a v-if="mode !== 'selesai'" href="#unggah-dokumen" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-cloud-arrow-up me-1"></i>Unggah Dokumen</a>
         </div>
       </div>
     </div>
@@ -167,6 +169,9 @@ function keluar() { keluarMurid(); router.push('/') }
           </template>
         </div>
       </div>
+
+      <!-- Unggah dokumen -->
+      <DokumenMurid :nisn="sesiMurid.nisn" :tgl="sesiMurid.tgl" :portal-dibuka="portalDibuka" />
 
       <!-- Aksi -->
       <div class="kartu p-3 p-md-4 mb-3">

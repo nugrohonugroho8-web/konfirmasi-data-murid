@@ -113,7 +113,7 @@ function urutKelas(a, b) {
   return t(a.kelas) - t(b.kelas) || a.kelas.localeCompare(b.kelas) || a.nama.localeCompare(b.nama)
 }
 
-export function unduhRekap(murid, log) {
+export function unduhRekap(murid, log, dokumen = []) {
   const wb = XLSX.utils.book_new()
   const data = [...murid].sort(urutKelas)
 
@@ -158,6 +158,11 @@ export function unduhRekap(murid, log) {
   const aoaLog = [['No', 'Waktu', 'NISN', 'Nama', 'Kelas', 'Kolom', 'Data Lama', 'Data Baru', 'Oleh']]
   ;(log || []).forEach((l, i) => aoaLog.push([i + 1, waktu(l.created_at), l.nisn, l.nama, l.kelas, l.label, l.nilai_lama, l.nilai_baru, l.sumber === 'admin' ? 'Admin' : 'Murid']))
   XLSX.utils.book_append_sheet(wb, sheetDariAoa(aoaLog, [5, 20, 13, 30, 8, 16, 45, 45, 8]), 'Log Perbaikan')
+
+  // 5. Daftar dokumen terunggah (file tetap di Supabase Storage)
+  const aoaDok = [['No', 'Waktu Unggah', 'NISN', 'Nama', 'Kelas', 'Jenis Dokumen', 'Nama File', 'Ukuran (KB)']]
+  ;(dokumen || []).forEach((d, i) => aoaDok.push([i + 1, waktu(d.created_at), d.nisn, d.nama, d.kelas, d.jenis, d.nama_asli, Math.round(d.ukuran / 1024)]))
+  XLSX.utils.book_append_sheet(wb, sheetDariAoa(aoaDok, [5, 20, 13, 30, 8, 18, 40, 12]), 'Dokumen')
 
   const tgl = new Date().toISOString().slice(0, 10)
   XLSX.writeFile(wb, `Rekap_Konfirmasi_Data_Murid_SMPN2_Tulangan_${tgl}.xlsx`)

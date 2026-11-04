@@ -6,12 +6,13 @@ import EditMurid from '../components/admin/EditMurid.vue'
 import Pengaturan from '../components/admin/Pengaturan.vue'
 import { STATUS, waktu, cekKolom } from '../lib/kolom'
 import { unduhRekap } from '../lib/excel'
-import { adminDataMurid, adminLog, adminBersihkanLog, adminKeluar, infoPortal, sesiAdmin, dengarPerubahan } from '../lib/api'
+import { adminDataMurid, adminLog, adminBersihkanLog, adminKeluar, infoPortal, sesiAdmin, dengarPerubahan, adminDokumen, adminLihatDokumen, adminHapusDokumen, bukaTabBaru, formatUkuran, JENIS_DOKUMEN } from '../lib/api'
 
 const router = useRouter()
 const tab = ref('ringkasan')
 const murid = ref([])
 const log = ref([])
+const dokumen = ref([])
 const info = ref(null)
 const memuat = ref(true)
 const pesan = ref(null)
@@ -25,8 +26,8 @@ async function muat(diam = false) {
   if (!diam) memuat.value = true
   try {
     const lamaIds = new Set(log.value.map(l => l.id))
-    const [m, l, i] = await Promise.all([adminDataMurid(), adminLog(2000), infoPortal()])
-    murid.value = m; info.value = i
+    const [m, l, i, dk] = await Promise.all([adminDataMurid(), adminLog(2000), infoPortal(), adminDokumen()])
+    murid.value = m; info.value = i; dokumen.value = dk
     if (diam && lamaIds.size) logBaru.value = new Set(l.filter(x => !lamaIds.has(x.id)).map(x => x.id))
     log.value = l
     terakhir.value = new Date()
@@ -101,11 +102,29 @@ async function bersihkanLog() {
   catch (e) { tampil(e.message, 'danger') } finally { membersihkan.value = false }
 }
 
+// ---------- Dokumen ----------
+const fDok = ref(''), fDokKelas = ref(''), fDokJenis = ref('')
+const nMuridDok = computed(() => new Set(dokumen.value.map(d => d.nisn)).size)
+const dokTersaring = computed(() => {
+  const q = fDok.value.trim().toLowerCase()
+  return dokumen.value
+    .filter(d => (!fDokKelas.value || d.kelas === fDokKelas.value) && (!fDokJenis.value || d.jenis === fDokJenis.value))
+    .filter(d => !q || [d.nama, d.nisn, d.nama_asli].some(v => (v || '').toLowerCase().includes(q)))
+})
+const hapusDokId = ref(null)
+async function lihatDok(d, unduh = false) {
+  try { await bukaTabBaru(() => adminLihatDokumen(d.id, unduh)) } catch (e) { tampil(e.message, 'danger') }
+}
+async function hapusDok(d) {
+  if (hapusDokId.value !== d.id) { hapusDokId.value = d.id; return }
+  try { await adminHapusDokumen(d.id); hapusDokId.value = null; tampil('Dokumen dihapus.'); muat(true) } catch (e) { tampil(e.message, 'danger') }
+}
+
 // ---------- Unduh ----------
 const mengunduh = ref(false)
 async function unduh() {
   mengunduh.value = true
-  try { unduhRekap(murid.value, log.value) }
+  try { unduhRekap(murid.value, log.value, dokumen.value) }
   catch (e) { tampil('Gagal membuat Excel: ' + e.message, 'danger') } finally { mengunduh.value = false }
 }
 </script>
@@ -137,6 +156,7 @@ async function unduh() {
       <li class="nav-item"><button class="nav-link" :class="{ active: tab === 'ringkasan' }" @click="tab = 'ringkasan'"><i class="bi bi-speedometer2 me-1"></i>Ringkasan</button></li>
       <li class="nav-item"><button class="nav-link text-nowrap" :class="{ active: tab === 'data' }" @click="tab = 'data'"><i class="bi bi-table me-1"></i>Data Murid</button></li>
       <li class="nav-item"><button class="nav-link text-nowrap" :class="{ active: tab === 'log' }" @click="tab = 'log'"><i class="bi bi-activity me-1"></i>Log Perbaikan <span class="badge text-bg-warning ms-1">{{ log.length }}</span></button></li>
+      <li class="nav-item"><button class="nav-link text-nowrap" :class="{ active: tab === 'dokumen' }" @click="tab = 'dokumen'"><i class="bi bi-folder2-open me-1"></i>Dokumen <span class="badge text-bg-secondary ms-1">{{ dokumen.length }}</span></button></li>
       <li class="nav-item"><button class="nav-link" :class="{ active: tab === 'pengaturan' }" @click="tab = 'pengaturan'"><i class="bi bi-gear me-1"></i>Pengaturan</button></li>
     </ul>
 
@@ -150,6 +170,7 @@ async function unduh() {
         <div class="col-6 col-lg-3"><div class="stat-kartu"><div class="ket">Diperbaiki</div><div class="angka" style="color:#b88a00">{{ nPerbaiki }}</div><div class="ket">{{ log.length }} kolom berubah</div></div></div>
         <div class="col-6 col-lg-3"><div class="stat-kartu"><div class="ket">Belum Konfirmasi</div><div class="angka text-secondary">{{ nBelum }}</div><div class="ket">{{ nTidakLengkap }} murid datanya belum lengkap</div></div></div>
       </div>
+      <div class="alert alert-light border small mb-3"><i class="bi bi-folder2-open text-hijau me-1"></i><b>{{ dokumen.length }} dokumen</b> diunggah oleh <b>{{ nMuridDok }} murid</b>. <a href="#" @click.prevent="tab = 'dokumen'">Lihat dokumen</a></div>
       <div class="kartu p-3 p-md-4 mb-3">
         <div class="d-flex justify-content-between mb-1"><b>Progres Konfirmasi Sekolah</b><b>{{ persen }}%</b></div>
         <div class="progress progress-tipis" role="progressbar" :aria-valuenow="persen" aria-valuemin="0" aria-valuemax="100">
@@ -247,10 +268,44 @@ async function unduh() {
       </div>
     </template>
 
+    <!-- DOKUMEN -->
+    <template v-else-if="tab === 'dokumen'">
+      <div class="kartu p-3 mb-3">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-5"><div class="input-group input-group-sm"><span class="input-group-text"><i class="bi bi-search"></i></span><input v-model="fDok" class="form-control" placeholder="Cari nama murid, NISN, nama file…" /></div></div>
+          <div class="col-6 col-md-3"><select v-model="fDokKelas" class="form-select form-select-sm"><option value="">Semua kelas</option><option v-for="k in daftarKelas" :key="k">{{ k }}</option></select></div>
+          <div class="col-6 col-md-4"><select v-model="fDokJenis" class="form-select form-select-sm"><option value="">Semua jenis dokumen</option><option v-for="j in JENIS_DOKUMEN" :key="j">{{ j }}</option></select></div>
+        </div>
+      </div>
+      <div class="small text-secondary mb-2">{{ dokTersaring.length }} dokumen · tautan lihat/unduh berlaku 5 menit</div>
+      <div class="kartu p-0 overflow-hidden">
+        <div class="table-responsive">
+          <table class="table table-hover table-data align-middle mb-0">
+            <thead class="table-light"><tr><th class="ps-3">Waktu</th><th>Murid</th><th>Jenis</th><th>File</th><th>Ukuran</th><th class="pe-3"></th></tr></thead>
+            <tbody>
+              <tr v-for="d in dokTersaring" :key="d.id">
+                <td class="ps-3 text-nowrap small">{{ waktu(d.created_at) }}</td>
+                <td><div class="fw-semibold">{{ d.nama }}</div><small class="text-secondary">{{ d.nisn }} · {{ d.kelas }}</small></td>
+                <td class="text-nowrap">{{ d.jenis }}</td>
+                <td class="small"><i class="bi me-1" :class="d.mime === 'application/pdf' ? 'bi-file-earmark-pdf text-danger' : 'bi-file-earmark-image text-primary'"></i>{{ d.nama_asli }}</td>
+                <td class="text-nowrap small">{{ formatUkuran(d.ukuran) }}</td>
+                <td class="pe-3 text-nowrap text-end">
+                  <button class="btn btn-sm btn-outline-primary me-1" title="Lihat" @click="lihatDok(d)"><i class="bi bi-eye"></i></button>
+                  <button class="btn btn-sm btn-outline-secondary me-1" title="Unduh" @click="lihatDok(d, true)"><i class="bi bi-download"></i></button>
+                  <button class="btn btn-sm" :class="hapusDokId === d.id ? 'btn-danger' : 'btn-outline-danger'" title="Hapus" @click="hapusDok(d)"><i class="bi bi-trash"></i><span v-if="hapusDokId === d.id" class="ms-1">Yakin?</span></button>
+                </td>
+              </tr>
+              <tr v-if="!dokTersaring.length"><td colspan="6" class="text-center text-secondary py-5"><i class="bi bi-inbox fs-3 d-block mb-1"></i>Belum ada dokumen.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </template>
+
     <!-- PENGATURAN -->
     <Pengaturan v-else-if="tab === 'pengaturan'" :info="info" :jumlah-murid="total" @berubah="muat(true)" @pesan="tampil" />
 
-    <EditMurid v-if="diedit" :murid="diedit" :daftar-kelas="daftarKelas" @tutup="diedit = null" @tersimpan="tersimpan" />
+    <EditMurid v-if="diedit" :murid="diedit" :daftar-kelas="daftarKelas" :dokumen="dokumen.filter(d => d.nisn === diedit.nisn)" @lihat-dok="lihatDok" @tutup="diedit = null" @tersimpan="tersimpan" />
 
     <Dialog v-if="dialogBersih" judul="Bersihkan log perbaikan?" @tutup="dialogBersih = false">
       <p class="mb-2">Seluruh <b>{{ log.length }} catatan log perbaikan</b> akan dihapus permanen.</p>

@@ -5,8 +5,8 @@ import InputTanggal from '../InputTanggal.vue'
 import { KOLOM_EDIT, PEKERJAAN, STATUS, waktu } from '../../lib/kolom'
 import { adminSimpanMurid, adminHapusMurid, adminResetStatus } from '../../lib/api'
 
-const props = defineProps({ murid: Object, daftarKelas: Array })
-const emit = defineEmits(['tutup', 'tersimpan'])
+const props = defineProps({ murid: Object, daftarKelas: Array, dokumen: { type: Array, default: () => [] } })
+const emit = defineEmits(['tutup', 'tersimpan', 'lihat-dok'])
 const form = reactive({ kelas: props.murid.kelas, status: props.murid.status })
 KOLOM_EDIT.forEach(k => { form[k.key] = props.murid[k.key] || '' })
 const sibuk = ref(false)
@@ -65,6 +65,15 @@ async function hapus() {
         <select v-model="form.status" class="form-select form-select-sm">
           <option v-for="(s, k) in STATUS" :key="k" :value="k">{{ s.label }}</option>
         </select>
+      </div>
+    </div>
+    <div class="mt-3">
+      <div class="small fw-semibold mb-1"><i class="bi bi-folder2-open me-1"></i>Dokumen diunggah ({{ dokumen.length }})</div>
+      <div v-if="!dokumen.length" class="small text-secondary fst-italic">Belum ada dokumen.</div>
+      <div v-else class="d-flex flex-wrap gap-2">
+        <button v-for="d in dokumen" :key="d.id" class="btn btn-sm btn-light border" @click="emit('lihat-dok', d)">
+          <i class="bi me-1" :class="d.mime === 'application/pdf' ? 'bi-file-earmark-pdf text-danger' : 'bi-file-earmark-image text-primary'"></i>{{ d.jenis }}
+        </button>
       </div>
     </div>
     <div v-if="galat" class="alert alert-danger small py-2 mt-3 mb-0">{{ galat }}</div>

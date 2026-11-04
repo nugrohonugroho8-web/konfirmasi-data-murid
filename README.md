@@ -15,6 +15,7 @@ Website interaktif agar murid dapat memeriksa, mengonfirmasi, dan memperbaiki da
 - Kolom kosong/janggal (No. HP tidak valid, alamat tanpa RT/RW) ditandai merah.
 - Tombol **Data Sudah Benar** atau **Perbaiki** → kolom yang diubah disorot kuning + tampil data semula.
 - Catatan untuk sekolah (mis. NISN/kelas keliru), pernyataan persetujuan, ringkasan setelah simpan.
+- **Unggah Dokumen Pendukung** (Kartu Keluarga, Akta Kelahiran, KTP orang tua, dll.): format **JPG/JPEG/PDF, maks. 1 MB**, maks. 10 file per murid, bisa dilihat & dihapus selama portal dibuka. File disimpan di **Supabase Storage** (bucket privat `dokumen-murid`).
 - Halaman **Panduan Pengisian** (langkah, aturan penulisan, FAQ).
 
 ### Admin — Panel Data Pusat Sekolah (`/admin`)
@@ -22,7 +23,8 @@ Website interaktif agar murid dapat memeriksa, mengonfirmasi, dan memperbaiki da
 - **Ringkasan**: total, data benar, diperbaiki, belum; progres per kelas.
 - **Data Murid**: cari/saring (kelas, status, data belum lengkap), edit data, ubah kelas/status, reset, hapus.
 - **Log Perbaikan Realtime**: perubahan dari murid muncul otomatis + tombol **Bersihkan Log**.
-- **Unduh Excel** (hanya admin): sheet Rekap, Semua Murid (+status & catatan), Kelas VII/VIII/IX (format sama dengan file sumber), Log Perbaikan.
+- **Dokumen**: daftar dokumen unggahan murid (cari/saring per kelas & jenis), lihat, unduh, hapus.
+- **Unduh Excel** (hanya admin): sheet Rekap, Semua Murid (+status & catatan), Kelas VII/VIII/IX (format sama dengan file sumber), Log Perbaikan, Dokumen.
 - **Pengaturan**: **Upload Data** Excel (mode tambah/perbarui atau ganti semua, pratinjau, NISN ganda otomatis digabung, template), buka/tutup portal + pengumuman, reset semua status, ganti password.
 
 ## Keamanan
@@ -31,6 +33,7 @@ Website interaktif agar murid dapat memeriksa, mengonfirmasi, dan memperbaiki da
   - murid: wajib NISN + tanggal lahir yang cocok;
   - admin: wajib token sesi (berlaku 12 jam) dari login username/password.
 - Kunci `sb_publishable_...` memang aman di browser (bukan kunci rahasia).
+- Bucket Storage `dokumen-murid` **privat** (tanpa policy publik), dibatasi 1 MB & tipe `image/jpeg`/`application/pdf` di sisi server. Unggah/lihat/hapus melalui Edge Function `dokumen-murid` yang memeriksa NISN + tgl lahir (murid) atau token admin, lalu memberi *signed URL* berumur pendek.
 - Sinyal realtime hanya berisi "ada perubahan" (tanpa data pribadi); panel admin lalu memuat ulang lewat RPC ber-token.
 
 ## Struktur
@@ -39,6 +42,8 @@ Website interaktif agar murid dapat memeriksa, mengonfirmasi, dan memperbaiki da
 ├── netlify.toml                 # build & redirect SPA untuk Netlify
 ├── public/logo.png, favicon.png # logo sekolah
 ├── supabase/migrations/001_skema_konfirmasi.sql   # skema + fungsi RPC
+├── supabase/migrations/002_dokumen_murid.sql      # bucket Storage + tabel dokumen
+├── supabase/functions/dokumen-murid/index.ts     # Edge Function unggah/lihat/hapus dokumen
 └── src/
     ├── main.js, App.vue, router.js, style.css
     ├── lib/   supabase.js · api.js · kolom.js · excel.js · store.js
@@ -49,7 +54,7 @@ Website interaktif agar murid dapat memeriksa, mengonfirmasi, dan memperbaiki da
 ## Database Supabase
 Proyek: **konfirmasi-data-murid** (`efdqgjgkcuvpqsulqyhg`, region Singapura). Skema sudah terpasang dan **652 murid** dari `Data_Siswa_SMPN_2_Tulangan_Lengkap.xlsx` sudah diimpor.
 
-Untuk memasang ke proyek Supabase lain: buka **SQL Editor**, jalankan `supabase/migrations/001_skema_konfirmasi.sql`, ubah URL & kunci di `.env`, lalu unggah data dari menu **Pengaturan → Upload Data**.
+Untuk memasang ke proyek Supabase lain: buka **SQL Editor**, jalankan `001_skema_konfirmasi.sql` lalu `002_dokumen_murid.sql`, deploy Edge Function `supabase functions deploy dokumen-murid --no-verify-jwt`, ubah URL & kunci di `.env`, lalu unggah data dari menu **Pengaturan → Upload Data**.
 
 ## Menjalankan lokal
 ```bash

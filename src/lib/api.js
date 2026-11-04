@@ -9,7 +9,17 @@ const PESAN = {
   SESI_TIDAK_VALID: 'Sesi admin berakhir. Silakan login ulang.',
   PASSWORD_LAMA_SALAH: 'Password lama salah.',
   PASSWORD_TERLALU_PENDEK: 'Password baru minimal 6 karakter.',
-  FORMAT_DATA_SALAH: 'Format data unggahan tidak valid.'
+  FORMAT_DATA_SALAH: 'Format data unggahan tidak valid.',
+  UKURAN_TERLALU_BESAR: 'Ukuran file melebihi 1 MB. Perkecil/kompres file terlebih dahulu.',
+  TIPE_TIDAK_DIDUKUNG: 'Tipe file harus JPG, JPEG, atau PDF.',
+  JENIS_TIDAK_VALID: 'Pilih jenis dokumen terlebih dahulu.',
+  BATAS_DOKUMEN: 'Batas maksimal 10 dokumen per murid tercapai. Hapus dokumen lama terlebih dahulu.',
+  FILE_BELUM_ADA: 'File gagal terunggah. Silakan coba lagi.',
+  DOKUMEN_TIDAK_ADA: 'Dokumen tidak ditemukan (mungkin sudah dihapus).',
+  KHUSUS_MURID: 'Aksi ini khusus untuk murid.'
+}
+function terjemah(kode, cadangan) {
+  return PESAN[kode] ? new ApiError(kode, PESAN[kode]) : new ApiError('LAIN', cadangan || 'Terjadi kesalahan.')
 }
 
 export class ApiError extends Error {
@@ -79,6 +89,66 @@ export const adminResetStatus = (nisn = null) => adminRpc('admin_reset_status', 
 export const adminSimpanPengaturan = (dibuka, pengumuman) =>
   adminRpc('admin_simpan_pengaturan', { p_portal_dibuka: dibuka, p_pengumuman: pengumuman })
 export const adminGantiPassword = (lama, baru) => adminRpc('admin_ganti_password', { p_lama: lama, p_baru: baru })
+
+// ---------- Dokumen (Supabase Storage via Edge Function "dokumen-murid") ----------
+export const MAKS_UKURAN = 1024 * 1024
+export const JENIS_DOKUMEN = ['Kartu Keluarga', 'Akta Kelahiran', 'KTP Ayah', 'KTP Ibu', 'KTP Wali', 'Ijazah / SKL', 'KIP / PIP / PKH', 'Foto Murid', 'Lainnya']
+
+async function fnDokumen(body) {
+  const { data, error } = await supabase.functions.invoke('dokumen-murid', { body })
+  if (error) {
+    let kode = ''
+    try { kode = (await error.context.json()).error } catch { /* abaikan */ }
+    if (!kode && /fetch|network/i.test(error.message)) throw new ApiError('JARINGAN', 'Gagal terhubung ke server. Periksa koneksi internet Anda.')
+    throw terjemah(kode, 'Gagal memproses dokumen.')
+  }
+  return data
+}
+const kred = () => (sesiAdmin() ? { token: sesiAdmin().token } : {})
+
+/** Tentukan MIME dari file (beberapa HP tidak mengisi file.type) */
+export function mimeFile(file) {
+  if (file.type === 'image/jpeg' || file.type === 'application/pdf') return file.type
+  if (/\.(jpe?g)$/i.test(file.name)) return 'image/jpeg'
+  if (/\.pdf$/i.test(file.name)) return 'application/pdf'
+  return file.type || ''
+}
+
+export const muridDokumen = (nisn, tgl) => rpc('murid_dokumen', { p_nisn: nisn, p_tgl_lahir: tgl })
+export async function muridUnggahDokumen(nisn, tgl, jenis, file) {
+  const mime = mimeFile(file)
+  if (!['image/jpeg', 'application/pdf'].includes(mime)) throw terjemah('TIPE_TIDAK_DIDUKUNG')
+  if (file.size > MAKS_UKURAN) throw terjemah('UKURAN_TERLALU_BESAR')
+  const s = await fnDokumen({ aksi: 'siapkan', nisn, tgl, jenis, mime, ukuran: file.size })
+  // bungkus ulang agar tipe MIME selalu terkirim benar (beberapa HP mengirim tipe kosong)
+  const berkas = new File([file], file.name, { type: mime })
+  const { error } = await supabase.storage.from('dokumen-murid').uploadToSignedUrl(s.path, s.token, berkas, { contentType: mime })
+  if (error) {
+    if (/size|large/i.test(error.message)) throw terjemah('UKURAN_TERLALU_BESAR')
+    if (/mime|type/i.test(error.message)) throw terjemah('TIPE_TIDAK_DIDUKUNG')
+    throw new ApiError('UNGGAH', 'Gagal mengunggah file: ' + error.message)
+  }
+  return fnDokumen({ aksi: 'selesai', nisn, tgl, jenis, path: s.path, nama: file.name })
+}
+export const muridLihatDokumen = (nisn, tgl, id) => fnDokumen({ aksi: 'lihat', nisn, tgl, id }).then(r => r.url)
+export const muridHapusDokumen = (nisn, tgl, id) => fnDokumen({ aksi: 'hapus', nisn, tgl, id })
+
+export const adminDokumen = () => adminRpc('admin_dokumen')
+export const adminLihatDokumen = (id, unduh = false) => fnDokumen({ aksi: 'lihat', id, unduh, ...kred() }).then(r => r.url)
+export const adminHapusDokumen = (id) => fnDokumen({ aksi: 'hapus', id, ...kred() })
+
+/** Buka URL bertanda tangan di tab baru tanpa diblokir pop-up blocker */
+export async function bukaTabBaru(ambilUrl) {
+  const w = window.open('about:blank', '_blank')
+  try {
+    const url = await ambilUrl()
+    if (w) w.location.href = url; else window.location.href = url
+  } catch (e) { if (w) w.close(); throw e }
+}
+
+export function formatUkuran(b) {
+  return b >= 1024 * 1024 ? (b / 1024 / 1024).toFixed(2) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'
+}
 
 // Realtime: sinyal tanpa data pribadi dari trigger database (kanal broadcast publik)
 export function dengarPerubahan(cb, onStatus = () => {}) {
